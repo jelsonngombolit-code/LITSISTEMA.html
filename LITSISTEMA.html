@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>LIT - Controle de Iluminação</title>
+  <style>
+    body { background:#000010; color:white; text-align:center; font-family:Arial; }
+    h1 { background:#0a0a9f; padding:15px; color:white; }
+    .area { border:2px solid #444; margin:20px auto; padding:20px; border-radius:15px; width:300px; background:#111122; }
+    .btn { padding:12px 25px; margin:8px; font-size:16px; border-radius:10px; border:none; cursor:pointer; }
+    .on { background:#0088ff; color:white; }
+    .off { background:#ff0000; color:white; }
+    .disabled { opacity:0.5; cursor:not-allowed; }
+  </style>
+</head>
+<body>
+  <h1>Laboratório LIT - Controle de Iluminação</h1>
+
+  <div class="area" id="rec"></div>
+  <div class="area" id="centro"></div>
+  <div class="area" id="extra"></div>
+
+  <footer><p>&copy; 2025 - Projeto LIT</p></footer>
+
+<script>
+  // CONFIGURAÇÕES DO THINGSPEAK
+  const channelID = 3071407;
+  const readAPI = "F348T9VG0EVUJMHF";      // Chave de leitura
+  const writeAPI = "LRYU5W6WABFPNLDK";     // Chave de escrita
+
+  // LER ESTADOS DO CANAL
+  async function readStates() {
+    const url = `https://api.thingspeak.com/channels/${channelID}/feeds/last.json?api_key=${readAPI}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    updateUI("rec", "Recepção", data.field1, 1);
+    updateUI("centro", "Centro", data.field2, 2);
+    updateUI("extra", "Extra", data.field3, 3);
+  }
+
+  // ATUALIZAR INTERFACE
+  function updateUI(divId, nome, valor, field) {
+    let bloco = `<h2>${nome}</h2>`;
+    bloco += `<p>Status: <b style="color:${valor==1?"#00ff00":"#ff4444"}">${valor == 1 ? "LIGADA" : "DESLIGADA"}</b></p>`;
+    
+    if (valor == 1) {
+      bloco += `<button class='btn on disabled'>LIGAR</button>`;
+      bloco += `<button class='btn off' onclick="sendData(${field},0)">DESLIGAR</button>`;
+    } else {
+      bloco += `<button class='btn on' onclick="sendData(${field},1)">LIGAR</button>`;
+      bloco += `<button class='btn off disabled'>DESLIGAR</button>`;
+    }
+    document.getElementById(divId).innerHTML = bloco;
+  }
+
+  // ENVIAR COMANDO PARA THINGSPEAK (corrigido: envia todos os campos)
+  async function sendData(field, value) {
+    // 1. Lê os estados atuais
+    const urlRead = `https://api.thingspeak.com/channels/${channelID}/feeds/last.json?api_key=${readAPI}`;
+    const resRead = await fetch(urlRead);
+    const data = await resRead.json();
+
+    // 2. Mantém os valores atuais
+    let f1 = data.field1 || 0;
+    let f2 = data.field2 || 0;
+    let f3 = data.field3 || 0;
+
+    // 3. Atualiza só o campo clicado
+    if (field === 1) f1 = value;
+    if (field === 2) f2 = value;
+    if (field === 3) f3 = value;
+
+    // 4. Envia todos os campos juntos
+    const urlWrite = `https://api.thingspeak.com/update?api_key=${writeAPI}&field1=${f1}&field2=${f2}&field3=${f3}`;
+    const resWrite = await fetch(urlWrite);
+    const result = await resWrite.text();
+
+    if (result === "0") {
+      alert("❌ Falha ao enviar");
+    } else {
+      alert("✅ Comando enviado");
+      setTimeout(readStates, 2000); // atualiza a interface após 2s
+    }
+  }
+
+  // Atualiza ao abrir e a cada 15s
+  readStates();
+  setInterval(readStates, 15000);
+</script>
+</body>
+</html>
